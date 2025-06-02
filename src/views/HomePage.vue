@@ -69,14 +69,14 @@
                   >mdi-account-group</v-icon
                 >
                 <div>
-                  <div class="text-h5 font-weight-bold">2</div>
-                  <div class="text-caption">Total Cadets</div>
+                  <div class="text-h5 font-weight-bold">{{ totalUsers }}</div>
+                  <div class="text-caption">Total Users</div>
                 </div>
               </v-card-text>
             </v-card>
           </v-col>
 
-          <v-col cols="12" md="3">
+          <!-- <v-col cols="12" md="3">
             <v-card class="mb-4" variant="outlined">
               <v-card-text class="d-flex align-center">
                 <v-icon size="x-large" color="black" class="mr-4"
@@ -88,7 +88,7 @@
                 </div>
               </v-card-text>
             </v-card>
-          </v-col>
+          </v-col> -->
 
           <v-col cols="12" md="3">
             <v-card class="mb-4" variant="outlined">
@@ -97,7 +97,7 @@
                   >mdi-clipboard-text</v-icon
                 >
                 <div>
-                  <div class="text-h5 font-weight-bold">0%</div>
+                  <div class="text-h5 font-weight-bold">85%</div>
                   <div class="text-caption">Attendance Rate</div>
                 </div>
               </v-card-text>
@@ -117,6 +117,18 @@
               </v-card-text>
             </v-card>
           </v-col>
+
+          <v-col cols="12" md="3">
+            <v-card class="mb-4" variant="outlined">
+              <v-card-text class="d-flex align-center">
+                <v-icon size="x-large" color="black" class="mr-4">mdi-bullhorn</v-icon>
+                <div>
+                  <div class="text-h5 font-weight-bold">{{ announcementCount }}</div>
+                  <div class="text-caption">Announcements</div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
         </v-row>
       </v-container>
 
@@ -128,9 +140,6 @@
         <v-row>
           <v-col cols="12">
             <v-card>
-              <!-- <v-card-title class="bg-grey-lighten-3"> -->
-                <!-- <h2 class="text-h4 font-weight-bold"></h2> -->
-              <!-- </v-card-title> -->
               <v-card-text>
                 <AnnouncementManager />
               </v-card-text>
@@ -210,31 +219,30 @@
         <v-list-subheader>Recent Conversations</v-list-subheader>
         
         <v-list-item
-          v-for="contact in contacts"
-          :key="contact.id"
-          @click="openChat(contact)"
-          :active="selectedContact && selectedContact.id === contact.id"
-          :class="{ 'unread': contact.unread }"
+          v-for="conversation in conversations"
+          :key="conversation.id"
+          @click="openChat(conversation)"
+          :active="selectedConversation && selectedConversation.id === conversation.id"
+          :class="{ 'unread': conversation.unread_count > 0 }"
         >
           <template v-slot:prepend>
             <v-avatar color="grey-lighten-1" class="mr-3">
-              <v-img v-if="contact.avatar" :src="contact.avatar"></v-img>
-              <span v-else class="text-h6">{{ getInitials(contact.name) }}</span>
+              <span class="text-h6">{{ getInitials(conversation.other_user_name) }}</span>
             </v-avatar>
           </template>
 
-          <v-list-item-title>{{ contact.name }}</v-list-item-title>
+          <v-list-item-title>{{ conversation.other_user_name || 'Unknown User' }}</v-list-item-title>
           <v-list-item-subtitle class="text-truncate">
-            {{ contact.lastMessage }}
+            {{ conversation.last_message || 'No messages yet' }}
           </v-list-item-subtitle>
 
           <template v-slot:append>
             <div class="d-flex flex-column align-end">
-              <span class="text-caption text-grey">{{ formatTime(contact.timestamp) }}</span>
+              <span class="text-caption text-grey">{{ formatTime(conversation.updated_at) }}</span>
               <v-badge
-                v-if="contact.unread"
+                v-if="conversation.unread_count > 0"
                 color="red"
-                :content="contact.unreadCount.toString()"
+                :content="conversation.unread_count.toString()"
                 inline
               ></v-badge>
             </div>
@@ -255,8 +263,8 @@
           <v-btn icon @click="minimizeChat">
             <v-icon>mdi-minus</v-icon>
           </v-btn>
-          <v-toolbar-title v-if="selectedContact">
-            {{ selectedContact.name }}
+          <v-toolbar-title v-if="selectedConversation">
+            {{ selectedConversation.other_user_name || 'Unknown User' }}
           </v-toolbar-title>
           <v-spacer></v-spacer>
           <v-btn icon @click="closeChat">
@@ -268,18 +276,18 @@
           <div class="messages-container pa-4" ref="messagesContainer">
             <template v-if="messages.length">
               <div
-                v-for="(message, index) in messages"
-                :key="index"
+                v-for="message in messages"
+                :key="message.id"
                 :class="[
                   'message-bubble mb-2 pa-2',
-                  message.senderId === currentUser.id ? 'sent' : 'received'
+                  message.sender_id === currentUser.id ? 'sent' : 'received'
                 ]"
               >
                 <div class="message-content">
                   {{ message.content }}
                 </div>
                 <div class="message-time text-caption text-grey">
-                  {{ formatTime(message.timestamp) }}
+                  {{ formatTime(message.created_at) }}
                 </div>
               </div>
             </template>
@@ -301,7 +309,7 @@
             @keyup.enter="sendMessage"
             class="mr-2"
           ></v-text-field>
-          <v-btn color="black" icon @click="sendMessage">
+          <v-btn color="black" icon @click="sendMessage" :disabled="!newMessage.trim()">
             <v-icon>mdi-send</v-icon>
           </v-btn>
         </v-card-actions>
@@ -316,7 +324,7 @@
           <v-autocomplete
             v-model="newChatUser"
             :items="availableUsers"
-            item-title="name"
+            item-title="display_name"
             item-value="id"
             label="Select a user"
             placeholder="Search for a user"
@@ -326,11 +334,10 @@
               <v-list-item v-bind="props">
                 <template v-slot:prepend>
                   <v-avatar color="grey-lighten-1" size="32">
-                    <v-img v-if="item.raw.avatar" :src="item.raw.avatar"></v-img>
-                    <span v-else class="text-caption">{{ getInitials(item.raw.name) }}</span>
+                    <span class="text-caption">{{ getInitials(item.raw.display_name) }}</span>
                   </v-avatar>
                 </template>
-                <v-list-item-title>{{ item.raw.name }}</v-list-item-title>
+                <v-list-item-title>{{ item.raw.display_name || 'Unknown User' }}</v-list-item-title>
                 <v-list-item-subtitle>{{ item.raw.role }}</v-list-item-subtitle>
               </v-list-item>
             </template>
@@ -357,11 +364,10 @@
         @click="maximizeChat(chat)"
       >
         <v-avatar color="black" size="48">
-          <v-img v-if="chat.avatar" :src="chat.avatar"></v-img>
-          <span v-else class="text-white">{{ getInitials(chat.name) }}</span>
+          <span class="text-white">{{ getInitials(chat.other_user_name) }}</span>
         </v-avatar>
         <v-badge
-          v-if="chat.unread"
+          v-if="chat.unread_count > 0"
           color="red"
           dot
           location="bottom end"
@@ -381,45 +387,390 @@
 </template>
 
 <script setup>
-import { supabase } from "./supabase"; // Adjust the import path as necessary
+import { supabase, ensureUserProfile } from "./supabase";
 import { useRouter } from "vue-router";
-import { ref, computed, onMounted, nextTick, watch } from 'vue';
-import AnnouncementSection from '../components/AnnouncementsSection.vue'; // Adjust path as needed
-import AnnouncementManager from '../views/AnnouncementManager.vue'; // Adjust path as needed
+import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
+import AnnouncementSection from '../components/AnnouncementsSection.vue';
+import AnnouncementManager from '../views/AnnouncementManager.vue';
 
-// Get router instance
 const router = useRouter();
 
-// User role state
+// User state
 const userRole = ref('');
+const currentUser = ref({
+  id: null,
+  name: '',
+  role: '',
+  display_name: ''
+});
+
 const isOfficer = computed(() => {
-  console.log('Current userRole:', userRole.value);
   return userRole.value.toLowerCase() === 'officer';
 });
 
-// Get user role from Supabase
-const getUserRole = async () => {
+// Stats
+const totalUsers = ref(0);
+const announcementCount = ref(0);
+
+// Chat state
+const chatDrawer = ref(false);
+const chatOpen = ref(false);
+const selectedConversation = ref(null);
+const conversations = ref([]);
+const messages = ref([]);
+const newMessage = ref('');
+const minimizedChats = ref([]);
+const showNewMessageDialog = ref(false);
+const newChatUser = ref(null);
+const availableUsers = ref([]);
+const notificationsOpen = ref(false);
+
+// Realtime subscription
+let messagesSubscription = null;
+let conversationsSubscription = null;
+
+// Computed properties
+const unreadCount = computed(() => {
+  return conversations.value.reduce((total, conv) => {
+    return total + (conv.unread_count || 0);
+  }, 0);
+});
+
+const hasUnreadMessages = computed(() => unreadCount.value > 0);
+
+// DOM reference
+const messagesContainer = ref(null);
+
+// Chat functions
+async function fetchConversations() {
+  if (!currentUser.value.id) return;
+
+  try {
+    const { data, error } = await supabase
+      .from('conversations')
+      .select(`
+        id,
+        user1_id,
+        user2_id,
+        last_message,
+        updated_at,
+        user1:profiles!conversations_user1_id_fkey(id, display_name, role),
+        user2:profiles!conversations_user2_id_fkey(id, display_name, role)
+      `)
+      .or(`user1_id.eq.${currentUser.value.id},user2_id.eq.${currentUser.value.id}`)
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching conversations:', error);
+      return;
+    }
+
+    // Process conversations to get other user info and unread counts
+    const processedConversations = await Promise.all(
+      data.map(async (conv) => {
+        const otherUser = conv.user1_id === currentUser.value.id ? conv.user2 : conv.user1;
+        
+        // Get unread count
+        const { count } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('conversation_id', conv.id)
+          .eq('receiver_id', currentUser.value.id)
+          .eq('read', false);
+
+        return {
+          id: conv.id,
+          other_user_id: otherUser?.id,
+          other_user_name: otherUser?.display_name || 'Unknown User',
+          other_user_role: otherUser?.role || 'user',
+          last_message: conv.last_message,
+          updated_at: conv.updated_at,
+          unread_count: count || 0
+        };
+      })
+    );
+
+    conversations.value = processedConversations;
+  } catch (err) {
+    console.error('Exception fetching conversations:', err);
+  }
+}
+
+async function fetchAvailableUsers() {
+  if (!currentUser.value.id) return;
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, display_name, role')
+      .neq('id', currentUser.value.id)
+      .order('display_name');
+
+    if (error) {
+      console.error('Error fetching users:', error);
+      return;
+    }
+
+    // Filter out users without display names and add fallbacks
+    const processedUsers = (data || []).map(user => ({
+      ...user,
+      display_name: user.display_name || 'Unknown User'
+    }));
+
+    availableUsers.value = processedUsers;
+    totalUsers.value = processedUsers.length + 1; // +1 for current user
+  } catch (err) {
+    console.error('Exception fetching users:', err);
+  }
+}
+
+async function fetchMessages(conversationId) {
+  try {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching messages:', error);
+      return;
+    }
+
+    messages.value = data || [];
+
+    // Mark messages as read
+    await supabase
+      .from('messages')
+      .update({ read: true })
+      .eq('conversation_id', conversationId)
+      .eq('receiver_id', currentUser.value.id)
+      .eq('read', false);
+
+    // Update conversation unread count
+    const convIndex = conversations.value.findIndex(c => c.id === conversationId);
+    if (convIndex !== -1) {
+      conversations.value[convIndex].unread_count = 0;
+    }
+
+    // Scroll to bottom
+    nextTick(() => {
+      scrollToBottom();
+    });
+  } catch (err) {
+    console.error('Exception fetching messages:', err);
+  }
+}
+
+async function sendMessage() {
+  if (!newMessage.value.trim() || !selectedConversation.value) return;
+
+  const messageContent = newMessage.value.trim();
+  newMessage.value = '';
+
+  try {
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: selectedConversation.value.id,
+        sender_id: currentUser.value.id,
+        receiver_id: selectedConversation.value.other_user_id,
+        content: messageContent,
+        read: false
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error sending message:', error);
+      return;
+    }
+
+    // Optimistically add the sent message to the UI
+    messages.value.push(data);
+
+    // Update conversation last message
+    await supabase
+      .from('conversations')
+      .update({
+        last_message: messageContent,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', selectedConversation.value.id);
+
+    // Update local conversation
+    const convIndex = conversations.value.findIndex(c => c.id === selectedConversation.value.id);
+    if (convIndex !== -1) {
+      conversations.value[convIndex].last_message = messageContent;
+      conversations.value[convIndex].updated_at = new Date().toISOString();
+      // Move to top
+      const conv = conversations.value.splice(convIndex, 1)[0];
+      conversations.value.unshift(conv);
+    }
+
+    nextTick(() => {
+      scrollToBottom();
+    });
+
+  } catch (err) {
+    console.error('Exception sending message:', err);
+  }
+}
+
+async function startNewChat() {
+  if (!newChatUser.value) return;
+
+  try {
+    // Check if conversation already exists
+    const { data: existingConv } = await supabase
+      .from('conversations')
+      .select('id')
+      .or(`and(user1_id.eq.${currentUser.value.id},user2_id.eq.${newChatUser.value.id}),and(user1_id.eq.${newChatUser.value.id},user2_id.eq.${currentUser.value.id})`)
+      .single();
+
+    let conversationId;
+
+    if (existingConv) {
+      conversationId = existingConv.id;
+    } else {
+      // Create new conversation
+      const { data: newConv, error } = await supabase
+        .from('conversations')
+        .insert({
+          user1_id: currentUser.value.id,
+          user2_id: newChatUser.value.id,
+          last_message: null,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating conversation:', error);
+        return;
+      }
+
+      conversationId = newConv.id;
+    }
+
+    // Create conversation object
+    const conversation = {
+      id: conversationId,
+      other_user_id: newChatUser.value.id,
+      other_user_name: newChatUser.value.display_name || 'Unknown User',
+      other_user_role: newChatUser.value.role,
+      last_message: null,
+      updated_at: new Date().toISOString(),
+      unread_count: 0
+    };
+
+    // Add to conversations if not exists
+    if (!conversations.value.find(c => c.id === conversationId)) {
+      conversations.value.unshift(conversation);
+    }
+
+    // Open chat
+    openChat(conversation);
+    showNewMessageDialog.value = false;
+    newChatUser.value = null;
+
+  } catch (err) {
+    console.error('Exception starting new chat:', err);
+  }
+}
+
+function openChat(conversation) {
+  selectedConversation.value = conversation;
+  chatOpen.value = true;
+  chatDrawer.value = false;
+  fetchMessages(conversation.id);
+}
+
+function closeChat() {
+  chatOpen.value = false;
+  selectedConversation.value = null;
+  messages.value = [];
+}
+
+function minimizeChat() {
+  if (selectedConversation.value) {
+    if (!minimizedChats.value.find(chat => chat.id === selectedConversation.value.id)) {
+      minimizedChats.value.push({...selectedConversation.value});
+    }
+    chatOpen.value = false;
+  }
+}
+
+function maximizeChat(chat) {
+  minimizedChats.value = minimizedChats.value.filter(c => c.id !== chat.id);
+  const conversation = conversations.value.find(c => c.id === chat.id);
+  if (conversation) {
+    openChat(conversation);
+  }
+}
+
+function toggleChat() {
+  chatDrawer.value = !chatDrawer.value;
+  if (chatDrawer.value) {
+    chatOpen.value = false;
+  }
+}
+
+function toggleNotifications() {
+  notificationsOpen.value = !notificationsOpen.value;
+}
+
+function scrollToBottom() {
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+  }
+}
+
+function formatTime(timestamp) {
+  if (!timestamp) return '';
+  
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } else if (diffDays === 1) {
+    return 'Yesterday';
+  } else if (diffDays < 7) {
+    return date.toLocaleDateString([], { weekday: 'short' });
+  } else {
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+}
+
+function getInitials(name) {
+  if (!name || name === 'Unknown User') return 'U';
+  return name
+    .split(' ')
+    .map(part => part.charAt(0))
+    .join('')
+    .toUpperCase();
+}
+
+async function getUserRole() {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session) {
-      console.log('No session found');
       return null;
     }
     
-    console.log('User metadata:', session.user.user_metadata);
-    
-    // Get role directly from user metadata (matching your router)
+    // Get role from user metadata first
     const roleFromMetadata = session.user.user_metadata?.role;
     if (roleFromMetadata) {
-      console.log('Role from metadata:', roleFromMetadata);
       return roleFromMetadata;
     }
     
-    // Fallback to profiles table if needed
+    // Fallback to profiles table
     const { data, error } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, display_name')
       .eq('id', session.user.id)
       .single();
     
@@ -428,452 +779,75 @@ const getUserRole = async () => {
       return null;
     }
     
-    console.log('Role from profiles table:', data?.role);
     return data?.role || null;
   } catch (err) {
     console.error('Exception fetching user role:', err);
     return null;
   }
-};
+}
 
-// Chat state
-const chatDrawer = ref(false);
-const chatOpen = ref(false);
-const selectedContact = ref(null);
-const messages = ref([]);
-const newMessage = ref('');
-const minimizedChats = ref([]);
-const showNewMessageDialog = ref(false);
-const newChatUser = ref(null);
-const notificationsOpen = ref(false);
+async function setupRealtimeSubscriptions() {
+  if (!currentUser.value.id) return;
 
-// Current user (would normally come from auth)
-const currentUser = ref({
-  id: '1',
-  name: 'Current User',
-  role: 'Officer'
-});
+  // Listen for messages where user is receiver OR sender
+  messagesSubscription = supabase
+    .channel('messages')
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'messages',
+      filter: `or(receiver_id.eq.${currentUser.value.id},sender_id.eq.${currentUser.value.id})`
+    }, (payload) => {
+      const newMessage = payload.new;
+      // Only add if it's for the current conversation
+      if (selectedConversation.value && newMessage.conversation_id === selectedConversation.value.id) {
+        messages.value.push(newMessage);
+        nextTick(() => {
+          scrollToBottom();
+        });
+      }
+      // ...update conversations list as needed...
+    })
+    .subscribe();
 
-// Mock contacts data (would normally come from Supabase)
-const contacts = ref([
-  {
-    id: '2',
-    name: 'John Doe',
-    role: 'Officer',
-    lastMessage: 'When is the next training session?',
-    timestamp: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
-    unread: true,
-    unreadCount: 2,
-    avatar: null
-  },
-  {
-    id: '3',
-    name: 'Jane Smith',
-    role: 'Cadet',
-    lastMessage: 'I submitted my assignment',
-    timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-    unread: false,
-    unreadCount: 0,
-    avatar: null
-  },
-  {
-    id: '4',
-    name: 'Robert Johnson',
-    role: 'Officer',
-    lastMessage: 'Please review the new schedule',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-    unread: true,
-    unreadCount: 1,
-    avatar: null
-  },
-  {
-    id: '5',
-    name: 'Maria Garcia',
-    role: 'Cadet',
-    lastMessage: 'Thank you for the feedback',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-    unread: false,
-    unreadCount: 0,
-    avatar: null
-  }
-]);
+  // Subscribe to conversation updates
+  conversationsSubscription = supabase
+    .channel('conversations')
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'conversations'
+    }, () => {
+      fetchConversations();
+    })
+    .subscribe();
 
-// Mock available users for new chat
-const availableUsers = ref([
-  {
-    id: '2',
-    name: 'John Doe',
-    role: 'Officer',
-    avatar: null
-  },
-  {
-    id: '3',
-    name: 'Jane Smith',
-    role: 'Cadet',
-    avatar: null
-  },
-  {
-    id: '4',
-    name: 'Robert Johnson',
-    role: 'Officer',
-    avatar: null
-  },
-  {
-    id: '5',
-    name: 'Maria Garcia',
-    role: 'Cadet',
-    avatar: null
-  },
-  {
-    id: '6',
-    name: 'David Wilson',
-    role: 'Officer',
-    avatar: null
-  },
-  {
-    id: '7',
-    name: 'Sarah Brown',
-    role: 'Cadet',
-    avatar: null
-  }
-]);
+  // Real-time announcements count
+  supabase
+    .channel('announcements')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'announcements'
+    }, () => {
+      fetchAnnouncementCount();
+    })
+    .subscribe();
 
-// Mock message history (would normally come from Supabase)
-const messageHistory = ref({
-  '2': [
-    {
-      id: '1',
-      senderId: '2',
-      receiverId: '1',
-      content: 'Hello, when is the next training session?',
-      timestamp: new Date(Date.now() - 1000 * 60 * 10), // 10 minutes ago
-      read: false
-    },
-    {
-      id: '2',
-      senderId: '2',
-      receiverId: '1',
-      content: 'I need to prepare my schedule',
-      timestamp: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
-      read: false
-    }
-  ],
-  '3': [
-    {
-      id: '3',
-      senderId: '1',
-      receiverId: '3',
-      content: 'Have you completed your assignment?',
-      timestamp: new Date(Date.now() - 1000 * 60 * 35), // 35 minutes ago
-      read: true
-    },
-    {
-      id: '4',
-      senderId: '3',
-      receiverId: '1',
-      content: 'Yes, I submitted my assignment',
-      timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-      read: true
-    }
-  ],
-  '4': [
-    {
-      id: '5',
-      senderId: '4',
-      receiverId: '1',
-      content: 'Please review the new schedule',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-      read: false
-    }
-  ],
-  '5': [
-    {
-      id: '6',
-      senderId: '5',
-      receiverId: '1',
-      content: 'Can you provide feedback on my performance?',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 25), // 25 hours ago
-      read: true
-    },
-    {
-      id: '7',
-      senderId: '1',
-      receiverId: '5',
-      content: 'Your performance has been excellent. Keep up the good work!',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), // 24 hours ago
-      read: true
-    },
-    {
-      id: '8',
-      senderId: '5',
-      receiverId: '1',
-      content: 'Thank you for the feedback',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 23), // 23 hours ago
-      read: true
-    }
-  ]
-});
+  supabase
+    .channel('profiles')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'profiles'
+    }, () => {
+      fetchTotalUsers();
+    })
+    .subscribe();
+}
 
-// Computed properties
-const unreadCount = computed(() => {
-  return contacts.value.reduce((total, contact) => {
-    return total + (contact.unread ? contact.unreadCount : 0);
-  }, 0);
-});
-
-const hasUnreadMessages = computed(() => unreadCount.value > 0);
-
-// DOM reference for message container
-const messagesContainer = ref(null);
-
-// Methods
-const toggleChat = () => {
-  chatDrawer.value = !chatDrawer.value;
-  if (chatDrawer.value) {
-    // If we're opening the chat drawer, close any open chat window
-    chatOpen.value = false;
-  }
-};
-
-const toggleNotifications = () => {
-  notificationsOpen.value = !notificationsOpen.value;
-};
-
-const openChat = (contact) => {
-  selectedContact.value = contact;
-  messages.value = messageHistory.value[contact.id] || [];
-  chatOpen.value = true;
-  chatDrawer.value = false;
-  
-  // Mark messages as read
-  if (contact.unread) {
-    contact.unread = false;
-    contact.unreadCount = 0;
-    
-    // Update read status in message history
-    if (messageHistory.value[contact.id]) {
-      messageHistory.value[contact.id].forEach(msg => {
-        if (msg.senderId === contact.id) {
-          msg.read = true;
-        }
-      });
-    }
-  }
-  
-  // Scroll to bottom of messages
-  nextTick(() => {
-    scrollToBottom();
-  });
-};
-
-const closeChat = () => {
-  chatOpen.value = false;
-  selectedContact.value = null;
-};
-
-const minimizeChat = () => {
-  if (selectedContact.value) {
-    // Add to minimized chats if not already there
-    if (!minimizedChats.value.find(chat => chat.id === selectedContact.value.id)) {
-      minimizedChats.value.push({...selectedContact.value});
-    }
-    chatOpen.value = false;
-  }
-};
-
-const maximizeChat = (chat) => {
-  // Remove from minimized chats
-  minimizedChats.value = minimizedChats.value.filter(c => c.id !== chat.id);
-  
-  // Find the contact and open chat
-  const contact = contacts.value.find(c => c.id === chat.id);
-  if (contact) {
-    openChat(contact);
-  }
-};
-
-const sendMessage = () => {
-  if (!newMessage.value.trim() || !selectedContact.value) return;
-  
-  // Create new message
-  const message = {
-    id: Date.now().toString(),
-    senderId: currentUser.value.id,
-    receiverId: selectedContact.value.id,
-    content: newMessage.value.trim(),
-    timestamp: new Date(),
-    read: true
-  };
-  
-  // Add to message history
-  if (!messageHistory.value[selectedContact.value.id]) {
-    messageHistory.value[selectedContact.value.id] = [];
-  }
-  messageHistory.value[selectedContact.value.id].push(message);
-  
-  // Update messages in current chat
-  messages.value.push(message);
-  
-  // Update contact's last message
-  const contactIndex = contacts.value.findIndex(c => c.id === selectedContact.value.id);
-  if (contactIndex !== -1) {
-    contacts.value[contactIndex].lastMessage = newMessage.value.trim();
-    contacts.value[contactIndex].timestamp = new Date();
-    
-    // Move this contact to the top of the list
-    const contact = contacts.value.splice(contactIndex, 1)[0];
-    contacts.value.unshift(contact);
-  }
-  
-  // Clear input
-  newMessage.value = '';
-  
-  // Scroll to bottom of messages
-  nextTick(() => {
-    scrollToBottom();
-  });
-  
-  // In a real app, you would send this message to Supabase here
-  // For example:
-  // sendMessageToSupabase(message);
-};
-
-const scrollToBottom = () => {
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-  }
-};
-
-const formatTime = (timestamp) => {
-  if (!timestamp) return '';
-  
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-  
-  if (diffDays === 0) {
-    // Today - show time
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } else if (diffDays === 1) {
-    // Yesterday
-    return 'Yesterday';
-  } else if (diffDays < 7) {
-    // Within a week - show day name
-    return date.toLocaleDateString([], { weekday: 'short' });
-  } else {
-    // Older - show date
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  }
-};
-
-const getInitials = (name) => {
-  if (!name) return '';
-  return name
-    .split(' ')
-    .map(part => part.charAt(0))
-    .join('')
-    .toUpperCase();
-};
-
-const startNewChat = () => {
-  if (!newChatUser.value) return;
-  
-  // Check if we already have a chat with this user
-  const existingContact = contacts.value.find(c => c.id === newChatUser.value.id);
-  
-  if (existingContact) {
-    // Open existing chat
-    openChat(existingContact);
-  } else {
-    // Create new contact
-    const newContact = {
-      id: newChatUser.value.id,
-      name: newChatUser.value.name,
-      role: newChatUser.value.role,
-      lastMessage: '',
-      timestamp: new Date(),
-      unread: false,
-      unreadCount: 0,
-      avatar: newChatUser.value.avatar
-    };
-    
-    // Add to contacts
-    contacts.value.unshift(newContact);
-    
-    // Open chat
-    openChat(newContact);
-  }
-  
-  // Close dialog
-  showNewMessageDialog.value = false;
-  newChatUser.value = null;
-};
-
-// Simulate receiving a message (for demo purposes)
-const simulateIncomingMessage = () => {
-  // Pick a random contact
-  const randomIndex = Math.floor(Math.random() * contacts.value.length);
-  const sender = contacts.value[randomIndex];
-  
-  // Create message
-  const message = {
-    id: Date.now().toString(),
-    senderId: sender.id,
-    receiverId: currentUser.value.id,
-    content: `This is a test message from ${sender.name}`,
-    timestamp: new Date(),
-    read: false
-  };
-  
-  // Add to message history
-  if (!messageHistory.value[sender.id]) {
-    messageHistory.value[sender.id] = [];
-  }
-  messageHistory.value[sender.id].push(message);
-  
-  // Update contact
-  const contactIndex = contacts.value.findIndex(c => c.id === sender.id);
-  if (contactIndex !== -1) {
-    // Update last message
-    contacts.value[contactIndex].lastMessage = message.content;
-    contacts.value[contactIndex].timestamp = new Date();
-    
-    // Mark as unread
-    contacts.value[contactIndex].unread = true;
-    contacts.value[contactIndex].unreadCount += 1;
-    
-    // Move to top of list
-    const contact = contacts.value.splice(contactIndex, 1)[0];
-    contacts.value.unshift(contact);
-    
-    // If chat is open with this contact, add message and mark as read
-    if (selectedContact.value && selectedContact.value.id === sender.id) {
-      messages.value.push(message);
-      contacts.value[0].unread = false;
-      contacts.value[0].unreadCount = 0;
-      message.read = true;
-      
-      // Scroll to bottom
-      nextTick(() => {
-        scrollToBottom();
-      });
-    }
-  }
-};
-
-// In a real app, you would set up Supabase realtime subscription here
-// For demo purposes, we'll simulate receiving messages periodically
-let messageInterval;
-
-// Logout function
-const logout = async () => {
+async function logout() {
   try {
-    // Clear any intervals
-    if (messageInterval) {
-      clearInterval(messageInterval);
-    }
-    
-    // Sign out from Supabase
     const { error } = await supabase.auth.signOut();
     
     if (error) {
@@ -881,33 +855,14 @@ const logout = async () => {
       return;
     }
     
-    console.log("Logged out successfully");
-    
-    // Redirect to the root path after successful logout
     router.push("/");
   } catch (err) {
     console.error("Unexpected error during logout:", err);
   }
-};
+}
 
-// Setup Supabase realtime for messages (mock implementation)
-const setupRealtimeMessages = () => {
-  // In a real app, you would subscribe to Supabase realtime here
-  // For demo purposes, we'll simulate receiving messages every 30-60 seconds
-  messageInterval = setInterval(() => {
-    // 20% chance of receiving a message
-    if (Math.random() < 0.2) {
-      simulateIncomingMessage();
-    }
-  }, 30000 + Math.random() * 30000);
-};
-
-
-
-// Watch for changes to chat window
 watch(chatOpen, (isOpen) => {
-  if (isOpen && selectedContact.value) {
-    // Scroll to bottom when chat opens
+  if (isOpen && selectedConversation.value) {
     nextTick(() => {
       scrollToBottom();
     });
@@ -915,37 +870,88 @@ watch(chatOpen, (isOpen) => {
 });
 
 onMounted(async () => {
-  // Check if the user is logged in
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session) {
-    // If not logged in, redirect to the root path
     router.push("/");
-  } else {
-    console.log('User is logged in, session:', session);
-    
-    // Setup realtime messages
-    setupRealtimeMessages();
-    
-    // Get user role
-    const role = await getUserRole();
-    console.log('Retrieved role:', role);
-    userRole.value = role || '';
-    
-    // For testing purposes, uncomment one of these lines if needed
-    // userRole.value = 'officer'; // For testing officer view
-    // userRole.value = 'cadet';   // For testing cadet view
-    
-    console.log('Set userRole to:', userRole.value);
-    console.log('isOfficer computed value:', isOfficer.value);
+    return;
   }
 
-  supabase.auth.onAuthStateChange((_event, session) => {
+  await ensureUserProfile(session.user);
+
+  const displayName = session.user.user_metadata?.full_name || 
+                     session.user.user_metadata?.name || 
+                     session.user.email?.split('@')[0] || 
+                     'User';
+
+  currentUser.value = {
+    id: session.user.id,
+    name: session.user.email,
+    role: session.user.user_metadata?.role || 'cadet',
+    display_name: displayName
+  };
+
+  const role = await getUserRole();
+  userRole.value = role || '';
+
+  await Promise.all([
+    fetchConversations(),
+    fetchAvailableUsers(),
+    fetchAnnouncementCount(),
+    fetchTotalUsers() // <-- Add this
+  ]);
+
+  setupRealtimeSubscriptions();
+
+  supabase.auth.onAuthStateChange(async (_event, session) => {
     if (!session) {
       router.push('/');
+    } else {
+      await ensureUserProfile(session.user);
     }
   });
 });
+
+onUnmounted(() => {
+  if (messagesSubscription) {
+    messagesSubscription.unsubscribe();
+  }
+  if (conversationsSubscription) {
+    conversationsSubscription.unsubscribe();
+  }
+});
+
+async function fetchAnnouncementCount() {
+  const { count, error } = await supabase
+    .from('announcements')
+    .select('*', { count: 'exact', head: true });
+
+  if (!error) {
+    announcementCount.value = count || 0;
+  } else {
+    console.error('Error fetching announcement count:', error);
+    announcementCount.value = 0;
+  }
+}
+
+async function fetchTotalUsers() {
+  try {
+    const { count, error } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) {
+      console.error('Error fetching total users:', error);
+      totalUsers.value = 0;
+      return;
+    }
+
+    totalUsers.value = count || 0;
+  } catch (err) {
+    console.error('Exception fetching total users:', err);
+    totalUsers.value = 0;
+  }
+}
 </script>
 
 <style scoped>
@@ -954,26 +960,6 @@ onMounted(async () => {
   margin: 0 auto;
 }
 
-.feature-card {
-  transition: transform 0.3s ease;
-  border: 1px solid #e0e0e0;
-}
-
-.feature-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-/* Black and white theme overrides */
-:deep(.v-card) {
-  border-radius: 8px;
-}
-
-:deep(.v-list-item__prepend > .v-icon) {
-  color: black;
-}
-
-/* Chat styles */
 .chat-drawer {
   z-index: 1000;
 }
@@ -1043,7 +1029,7 @@ onMounted(async () => {
 
 .minimized-chat-bubble {
   margin-left: 10px;
-  cursor: pointer;
+  cursor: pointer;  
   position: relative;
   transition: transform 0.2s;
 }

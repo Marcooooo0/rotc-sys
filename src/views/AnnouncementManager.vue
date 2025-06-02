@@ -1,4 +1,3 @@
-<!-- views/AnnouncementManager.vue -->
 <template>
   <v-container>
     <v-row>
@@ -27,15 +26,6 @@
                 rows="5"
               ></v-textarea>
 
-              <v-file-input
-                v-model="announcementImage"
-                label="Announcement Image (Optional)"
-                accept="image/*"
-                prepend-icon="mdi-camera"
-                show-size
-                truncate-length="25"
-              ></v-file-input>
-
               <v-btn
                 type="submit"
                 color="black"
@@ -57,12 +47,10 @@
           :loading="loading"
           class="elevation-1"
         >
-          <!-- Fix v-slot syntax -->
           <template #[`item.created_at`]="{ item }">
             {{ formatDate(item.created_at) }}
           </template>
 
-          <!-- Fix v-slot syntax -->
           <template #[`item.is_active`]="{ item }">
             <v-chip
               :color="item.is_active ? 'green' : 'grey'"
@@ -73,7 +61,6 @@
             </v-chip>
           </template>
 
-          <!-- Fix v-slot syntax -->
           <template #[`item.actions`]="{ item }">
             <v-btn
               icon
@@ -120,23 +107,6 @@
               :rules="[(v) => !!v || 'Content is required']"
               rows="5"
             ></v-textarea>
-
-            <v-img
-              v-if="editedAnnouncement.image_url"
-              :src="editedAnnouncement.image_url"
-              height="200"
-              contain
-              class="my-4 bg-grey-lighten-3"
-            ></v-img>
-
-            <v-file-input
-              v-model="editImage"
-              label="Replace Image (Optional)"
-              accept="image/*"
-              prepend-icon="mdi-camera"
-              show-size
-              truncate-length="25"
-            ></v-file-input>
 
             <v-switch
               v-model="editedAnnouncement.is_active"
@@ -212,23 +182,18 @@
 </template>
 
 <script setup>
-/* eslint-disable no-unused-vars */
 import { ref, onMounted } from "vue";
 import {
   createAnnouncement,
-  updateAnnouncement as updateAnnouncementApi,
   deleteAnnouncement as deleteAnnouncementApi,
-  uploadAnnouncementImage,
   supabase,
-} from "./supabase"; // Fixed path - assuming supabase.js is in the same directory
+} from "./supabase";
 
 const form = ref(null);
 const editForm = ref(null);
 const loading = ref(true);
 const submitting = ref(false);
 const myAnnouncements = ref([]);
-const announcementImage = ref(null);
-const editImage = ref(null);
 const editDialog = ref(false);
 const deleteDialog = ref(false);
 const editedAnnouncement = ref(null);
@@ -250,11 +215,6 @@ const headers = [
   { title: "Status", key: "is_active" },
   { title: "Actions", key: "actions", sortable: false },
 ];
-
-// We'll use this in a future implementation
-// const currentUser = computed(() => {
-//   return supabase.auth.user();
-// });
 
 onMounted(async () => {
   await fetchMyAnnouncements();
@@ -297,22 +257,6 @@ async function submitAnnouncement() {
   if (!valid) return;
 
   submitting.value = true;
-  let imageUrl = null;
-
-  if (announcementImage.value) {
-    const file = announcementImage.value;
-    const { data: imageData, error: imageError } =
-      await uploadAnnouncementImage(file);
-
-    if (imageError) {
-      console.error("Error uploading image:", imageError);
-      showSnackbar("Failed to upload image", "error");
-      submitting.value = false;
-      return;
-    }
-
-    imageUrl = imageData.url;
-  }
 
   try {
     const {
@@ -327,8 +271,7 @@ async function submitAnnouncement() {
     const { error } = await createAnnouncement(
       newAnnouncement.value.title,
       newAnnouncement.value.content,
-      imageUrl,
-      session.user.id // <- pass user ID
+      null // No image URL
     );
 
     if (error) {
@@ -347,13 +290,11 @@ async function submitAnnouncement() {
   submitting.value = false;
 }
 
-
 function resetForm() {
   newAnnouncement.value = {
     title: "",
     content: "",
   };
-  announcementImage.value = null;
   if (form.value) {
     form.value.reset();
   }
@@ -361,12 +302,12 @@ function resetForm() {
 
 function editAnnouncement(announcement) {
   editedAnnouncement.value = { ...announcement };
-  editImage.value = null;
   editDialog.value = true;
 }
 
 async function updateAnnouncement() {
-  if (!editForm.value.validate()) return;
+  const { valid } = await editForm.value.validate();
+  if (!valid) return;
 
   submitting.value = true;
   let updates = {
@@ -375,22 +316,6 @@ async function updateAnnouncement() {
     is_active: editedAnnouncement.value.is_active,
     updated_at: new Date().toISOString(),
   };
-
-  // Upload new image if provided
-  if (editImage.value && editImage.value.length > 0) {
-    const file = editImage.value[0];
-    const { data: imageData, error: imageError } =
-      await uploadAnnouncementImage(file);
-
-    if (imageError) {
-      console.error("Error uploading image:", imageError);
-      showSnackbar("Failed to upload image", "error");
-      submitting.value = false;
-      return;
-    }
-
-    updates.image_url = imageData.url;
-  }
 
   try {
     const { error } = await supabase
@@ -420,12 +345,12 @@ function confirmDelete(announcement) {
 }
 
 async function deleteAnnouncement() {
+  if (!announcementToDelete.value) return;
+
   submitting.value = true;
 
   try {
-    const { error } = await deleteAnnouncementApi(
-      announcementToDelete.value.id
-    );
+    const { error } = await deleteAnnouncementApi(announcementToDelete.value.id);
 
     if (error) {
       console.error("Error deleting announcement:", error);
@@ -461,3 +386,7 @@ function showSnackbar(text, color = "success") {
   };
 }
 </script>
+
+<style scoped>
+/* No image-specific styles needed */
+</style>
